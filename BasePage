@@ -1,0 +1,93 @@
+package com.soumya.sampleProject.pages;
+
+import com.soumya.sampleProject.exceptions.SendKeysException;
+import com.soumya.sampleProject.utils.RetryEngine;
+import org.openqa.selenium.Alert;
+import org.openqa.selenium.NoAlertPresentException;
+import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.WebElement;
+import org.openqa.selenium.support.FindBy;
+import org.openqa.selenium.support.ui.ExpectedConditions;
+import org.openqa.selenium.support.ui.Select;
+import org.openqa.selenium.support.ui.WebDriverWait;
+import org.springframework.retry.RetryCallback;
+
+import java.util.List;
+
+public class BasePage {
+
+    protected WebDriver driver;
+    private WebDriverWait webDriverWait;
+    private RetryEngine retryEngine;
+
+
+    @FindBy(className = "x-progress-wrap")
+    protected WebElement progressBarElement;
+
+    <T> BasePage(WebDriver webDriver) {
+        this.driver = webDriver;
+        retryEngine = new RetryEngine(3, SendKeysException.class);
+        webDriverWait = new WebDriverWait(webDriver,30);
+    }
+
+    protected void waitForElementToBeVisible(WebElement element) {
+        webDriverWait.until(ExpectedConditions.visibilityOf(element));
+    }
+
+    protected void waitForElementToBeInvisible(WebElement element) {
+        webDriverWait.until(ExpectedConditions.invisibilityOf(element));
+    }
+
+    protected void waitForElementsToBeVisible(List<WebElement> elementList) {
+        webDriverWait.until(ExpectedConditions.visibilityOfAllElements(elementList));
+    }
+
+    protected void waitForElementToBeClickable(WebElement element) {
+        webDriverWait.until(ExpectedConditions.elementToBeClickable(element));
+    }
+
+    protected void sendKeys(WebElement element, String value) {
+        RetryCallback sendKeysCallback = context ->  {
+            element.clear();
+            element.sendKeys(value);
+            String lastEnteredValue = element.getText();
+            if(!lastEnteredValue.equals(value)) {
+                String inputValue = element.getAttribute("value");
+                if(!inputValue.equals(value))
+                    throw new SendKeysException(value);
+            }
+            return null;
+        };
+        retryEngine.execute(sendKeysCallback);
+    }
+
+    protected boolean matchText(WebElement element, String valueToMatch) {
+        return element.getText().contains(valueToMatch);
+    }
+
+
+    protected void selectValue(WebElement webElement, String value) {
+        Select select = new Select(webElement);
+        select.selectByVisibleText(value);
+    }
+
+    protected void acceptAlert(String alertText) {
+        RetryCallback alertCallback = context -> {
+            try {
+                Alert alert = driver.switchTo().alert();
+                if(alert.getText().equalsIgnoreCase(alertText)) {
+                    alert.accept();
+                }
+            } catch (NoAlertPresentException e) {
+                throw e;
+            }
+            return null;
+        };
+
+        RetryEngine retryEngine = new RetryEngine(10,NoAlertPresentException.class);
+        retryEngine.execute(alertCallback);
+    }
+
+
+
+}
